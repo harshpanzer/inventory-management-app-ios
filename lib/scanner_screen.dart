@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'db_helper.dart'; // Ensure this points to where DatabaseHelper is
-import 'item.dart'; // Ensure this points to where Item is
+
+import 'db_helper.dart';
+import 'item.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -11,7 +12,17 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
-  final MobileScannerController controller = MobileScannerController();
+  final MobileScannerController controller = MobileScannerController(
+    formats: [
+      BarcodeFormat.qrCode,
+      BarcodeFormat.code128,
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.code39,
+    ],
+  );
   bool isProcessing = false;
 
   void _onDetect(BarcodeCapture capture) async {
@@ -20,7 +31,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (barcode == null) return;
 
     setState(() => isProcessing = true);
-    controller.stop();
 
     final nameController = TextEditingController();
     final qtyController = TextEditingController(text: '1');
@@ -71,18 +81,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 final name = nameController.text.trim();
                 final qty = int.tryParse(qtyController.text.trim()) ?? 1;
                 final dateSubmitted = DateTime.now().toIso8601String();
-                
-                // Create the Item object using your model
+
                 final newItem = Item(
                   barcode: barcode,
                   name: name,
                   quantity: qty,
                   dateSubmitted: dateSubmitted,
                 );
-                
-                // Use your updated insert method
+
                 await DatabaseHelper.instance.insertItem(newItem);
-                
+
                 if (mounted) Navigator.pop(ctx);
               }
             },
@@ -92,8 +100,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ),
     );
 
-    controller.start();
-    setState(() => isProcessing = false);
+    if (mounted) {
+      setState(() => isProcessing = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
   }
 
   @override
