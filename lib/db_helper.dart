@@ -1,9 +1,11 @@
 import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'item.dart';
 
 class DatabaseHelper {
@@ -19,7 +21,17 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'inventory.db');
+    if (kIsWeb) {
+      // Use IndexedDB implementation for web
+      databaseFactory = databaseFactoryFfiWeb;
+    }
+
+    String path = kIsWeb
+        .toString()
+        .contains('true') // web path check
+        ? 'inventory.db'
+        : join(await getDatabasesPath(), 'inventory.db');
+
     return await openDatabase(
       path,
       version: 1,
@@ -30,7 +42,7 @@ class DatabaseHelper {
             barcode TEXT NOT NULL,
             name TEXT NOT NULL,
             quantity INTEGER NOT NULL,
-            dateSubmitted TEXT NOT NULL -- <-- ADDED: Date column
+            dateSubmitted TEXT NOT NULL
           )
         ''');
       },
@@ -44,7 +56,7 @@ class DatabaseHelper {
 
   Future<List<Item>> getItems() async {
     final db = await instance.database;
-    final maps = await db.query('items');
+    final maps = await db.query('items', orderBy: 'id DESC');
     return maps.map((map) => Item.fromMap(map)).toList();
   }
 
@@ -52,10 +64,12 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.delete('items', where: 'id = ?', whereArgs: [id]);
   }
-  /// Export the database file via Share sheet (Google Drive, WhatsApp, Email, local storage)
+
+  /// Export raw database file (Mobile only)
   Future<void> exportDatabaseFile() async {
+    if (kIsWeb) return;
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'inventory.db'); // Make sure this matches your DB filename
+    final path = join(dbPath, 'inventory.db');
     final file = File(path);
 
     if (await file.exists()) {
@@ -63,25 +77,21 @@ class DatabaseHelper {
     }
   }
 
-  /// Pick a .db file and restore it by replacing current database file
+  /// Import raw database file (Mobile only)
   Future<bool> importDatabaseFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-    );
+    if (kIsWeb) return false;
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
 
     if (result != null && result.files.single.path != null) {
       File sourceFile = File(result.files.single.path!);
-
       final dbPath = await getDatabasesPath();
-      final path = join(dbPath, 'inventory.db'); // Make sure this matches your DB filename
+      final path = join(dbPath, 'inventory.db');
 
-      // Close the current DB before overwriting
       if (_database != null && _database!.isOpen) {
         await _database!.close();
         _database = null;
       }
 
-      // Overwrite current database file
       await sourceFile.copy(path);
       return true;
     }

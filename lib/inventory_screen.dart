@@ -1,10 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
 import 'db_helper.dart';
-import 'excel_service.dart'; // Ensure this matches your ExcelExporter file name
 import 'item.dart';
 import 'scanner_screen.dart';
+import 'excel_service.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -58,48 +58,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  // Handle DB Export
-  Future<void> _handleExportDB() async {
-    Navigator.pop(context); // Close Drawer
-    try {
-      await DatabaseHelper.instance.exportDatabaseFile();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export DB: $e')),
-        );
-      }
-    }
-  }
-
-  // Handle DB Import
-  Future<void> _handleImportDB() async {
-    Navigator.pop(context); // Close Drawer
-    setState(() => _isLoading = true);
-    try {
-      bool success = await DatabaseHelper.instance.importDatabaseFile();
-      if (success) {
-        _refreshList();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Database imported successfully!')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to import DB: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // Handle Excel Export
   Future<void> _handleExportExcel() async {
-    Navigator.pop(context); // Close Drawer
+    Navigator.pop(context);
     setState(() => _isLoading = true);
     try {
       await ExcelExporter.exportAndShare();
@@ -120,15 +80,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       appBar: AppBar(
         title: const Text('Inventory'),
       ),
-      // --- SIDEBAR (DRAWER) ---
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             const DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blue,
-              ),
+              decoration: BoxDecoration(color: Colors.blue),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -137,38 +94,43 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   SizedBox(height: 8),
                   Text(
                     'Inventory App',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold),
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    'Database Management',
+                    'Web & Mobile Storage',
                     style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),
             ),
+            if (!kIsWeb) ...[
+              ListTile(
+                leading: const Icon(Icons.file_upload_outlined, color: Colors.blue),
+                title: const Text('Backup Database (.db)'),
+                subtitle: const Text('Export DB for mobile devices'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await DatabaseHelper.instance.exportDatabaseFile();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_download_outlined, color: Colors.green),
+                title: const Text('Restore Database (.db)'),
+                subtitle: const Text('Import DB backup file'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  setState(() => _isLoading = true);
+                  await DatabaseHelper.instance.importDatabaseFile();
+                  _refreshList();
+                  setState(() => _isLoading = false);
+                },
+              ),
+              const Divider(),
+            ],
             ListTile(
-              leading:
-                  const Icon(Icons.file_upload_outlined, color: Colors.blue),
-              title: const Text('Backup Database (.db)'),
-              subtitle: const Text('Export database to move to another phone'),
-              onTap: _handleExportDB,
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.file_download_outlined, color: Colors.green),
-              title: const Text('Restore Database (.db)'),
-              subtitle: const Text('Import database from backup file'),
-              onTap: _handleImportDB,
-            ),
-            const Divider(),
-            ListTile(
-              leading:
-                  const Icon(Icons.table_chart_outlined, color: Colors.teal),
+              leading: const Icon(Icons.table_chart_outlined, color: Colors.teal),
               title: const Text('Export to Excel (.xlsx)'),
-              subtitle: const Text('Share database as a spreadsheet'),
+              subtitle: const Text('Download spreadsheet report'),
               onTap: _handleExportExcel,
             ),
           ],
@@ -218,8 +180,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.red),
+                                    icon: const Icon(Icons.delete, color: Colors.red),
                                     onPressed: () {
                                       if (item.id != null) {
                                         _delete(item.id!);
